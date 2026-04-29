@@ -1,26 +1,482 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand: #e10600;
+  --color-brand-dim: #b30500;
+
+  --font-family-grotesk: var(--font-bebas-neue), sans-serif;
+  --font-family-inter: var(--font-geist-sans), sans-serif;
+}
+
+/* =========================================================
+   NEUMATICOS RAMOS — Design System
+   Temas disponibles: default (rojo) | pirelli (amarillo)
+   Para cambiar tema: añade data-theme="pirelli" al <html>
+   ========================================================= */
+
+/* =========================================================
+   TEMA DEFAULT — Rojo Neumáticos Ramos
+   ========================================================= */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Fondos */
+  --background:   10 10 10;
+  --surface:      18 18 18;
+  --surface-2:    24 24 24;
+  --card:         15 15 15;
+
+  /* Bordes y texto */
+  --border:               39 39 42;
+  --muted:                161 161 170;
+  --muted-foreground:     113 113 122;
+  --foreground:           245 245 245;
+
+  /* Color de marca */
+  --primary:              220 38 38;
+  --primary-foreground:   255 255 255;
+  --primary-hover:        185 28 28;
+  --primary-subtle:       220 38 38;   /* para fondos con opacidad */
+
+  /* Glow / ring */
+  --ring:                 220 38 38;
+  --glow:                 220 38 38;
+
+  /* Estados */
+  --success:  34 197 94;
+  --warning:  234 179 8;
+  --danger:   239 68 68;
+
+  /* Radios */
+  --radius-sm:  0.375rem;
+  --radius-md:  0.75rem;
+  --radius-lg:  1.125rem;
+  --radius-xl:  1.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* =========================================================
+   TEMA PIRELLI — Amarillo / Negro
+   Uso: <html data-theme="pirelli">
+   ========================================================= */
+[data-theme="pirelli"] {
+  --primary:              234 179 8;
+  --primary-foreground:   10 10 10;
+  --primary-hover:        202 154 4;
+  --primary-subtle:       234 179 8;
+
+  --ring:                 234 179 8;
+  --glow:                 234 179 8;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* =========================================================
+   RESET BASE
+   ========================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav-link-active   { color: #e10600 !important; }
+.nav-link-inactive { color: rgb(161 161 170) !important; }
+.nav-link-inactive:hover { color: #e10600 !important; }
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+.container-site {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 768px) {
+  .container-site {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container-site {
+    padding-inline: 2rem;
+  }
+}
+
+.section-spacing {
+  padding-block: 4rem;
+}
+
+@media (min-width: 768px) {
+  .section-spacing {
+    padding-block: 6rem;
+  }
+}
+
+.grid-auto-fit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+/* =========================================================
+   COLORES — CLASES UTILITARIAS
+   ========================================================= */
+.bg-theme         { background-color: rgb(var(--background)); }
+.bg-surface       { background-color: rgb(var(--surface)); }
+.bg-surface-2     { background-color: rgb(var(--surface-2)); }
+.bg-card          { background-color: rgb(var(--card)); }
+.bg-primary-theme { background-color: rgb(var(--primary)); }
+
+.text-theme               { color: rgb(var(--foreground)); }
+.text-muted               { color: rgb(var(--muted)); }
+.text-muted-foreground    { color: rgb(var(--muted-foreground)); }
+.text-primary-theme       { color: rgb(var(--primary)); }
+.text-primary-fg-theme    { color: rgb(var(--primary-foreground)); }
+
+.border-theme { border-color: rgb(var(--border)); }
+
+/* =========================================================
+   TIPOGRAFÍA
+   ========================================================= */
+.display-title {
+  font-family: var(--font-bebas-neue), var(--font-geist-sans), sans-serif;
+  font-weight: 400;           /* Bebas Neue es bold por naturaleza */
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.section-title {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.eyebrow {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: rgb(var(--primary));
+}
+
+.text-balance { text-wrap: balance; }
+
+/* =========================================================
+   CARDS Y SUPERFICIES
+   ========================================================= */
+.glass-card {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+  border: 1px solid rgba(var(--border), 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.theme-glow {
+  box-shadow:
+    0 0 0 1px rgba(var(--border), 0.8),
+    0 0 24px rgba(var(--glow), 0.15);
+}
+
+.theme-glow-strong {
+  box-shadow:
+    0 0 0 1px rgba(var(--border), 0.8),
+    0 0 40px rgba(var(--glow), 0.25);
+}
+
+/* Línea superior con gradiente de color de marca */
+.top-border-glow {
+  position: relative;
+}
+
+.top-border-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--primary), 0.9),
+    transparent
+  );
+}
+
+/* =========================================================
+   BOTONES
+   ========================================================= */
+.btn-primary-theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background-color: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+  padding: 0.875rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+  box-shadow: 0 0 20px rgba(var(--glow), 0.2);
+}
+
+.btn-primary-theme:hover {
+  background-color: rgb(var(--primary-hover));
+  transform: translateY(-1px);
+  box-shadow: 0 0 32px rgba(var(--glow), 0.32);
+}
+
+.btn-primary-theme:active {
+  transform: scale(0.975);
+  box-shadow: 0 0 12px rgba(var(--glow), 0.15);
+}
+
+.btn-primary-theme:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary-theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(var(--border), 1);
+  background-color: transparent;
+  color: rgb(var(--foreground));
+  padding: 0.875rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn-secondary-theme:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--primary), 0.6);
+  background-color: rgba(var(--primary), 0.07);
+}
+
+.btn-secondary-theme:active {
+  transform: scale(0.975);
+}
+
+.btn-secondary-theme:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =========================================================
+   FORMULARIOS
+   ========================================================= */
+.input-theme {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(var(--border), 1);
+  background-color: rgba(255, 255, 255, 0.03);
+  color: rgb(var(--foreground));
+  padding: 0.875rem 1rem;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.input-theme::placeholder {
+  color: rgb(var(--muted-foreground));
+}
+
+.input-theme:focus {
+  border-color: rgba(var(--primary), 0.7);
+  box-shadow: 0 0 0 3px rgba(var(--ring), 0.15);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.input-theme:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-error {
+  border-color: rgba(var(--danger), 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(var(--danger), 0.12) !important;
+}
+
+.label-theme {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(var(--muted));
+  margin-bottom: 0.5rem;
+}
+
+.error-message {
+  font-size: 0.8125rem;
+  color: rgb(var(--danger));
+  margin-top: 0.375rem;
+}
+
+/* =========================================================
+   HERO
+   ========================================================= */
+.hero-overlay {
+  background:
+    linear-gradient(to top,  rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.25)),
+    linear-gradient(to right, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.15));
+}
+
+/* =========================================================
+   BADGES / ETIQUETAS
+   ========================================================= */
+.badge-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: rgba(var(--warning), 0.12);
+  color: rgb(var(--warning));
+  border: 1px solid rgba(var(--warning), 0.25);
+}
+
+.badge-confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: rgba(var(--success), 0.12);
+  color: rgb(var(--success));
+  border: 1px solid rgba(var(--success), 0.25);
+}
+
+.badge-completed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: rgba(var(--muted), 0.12);
+  color: rgb(var(--muted));
+  border: 1px solid rgba(var(--muted), 0.2);
+}
+
+.badge-cancelled {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background-color: rgba(var(--danger), 0.12);
+  color: rgb(var(--danger));
+  border: 1px solid rgba(var(--danger), 0.25);
+}
+
+/* =========================================================
+   ANIMACIONES
+   ========================================================= */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(var(--glow), 0.2); }
+  50%       { box-shadow: 0 0 40px rgba(var(--glow), 0.4); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }

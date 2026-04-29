@@ -1,65 +1,102 @@
-import Image from "next/image";
+import type { Service, StoreConfig } from '@/types/database'
 
-export default function Home() {
+import { Contact } from '../components/layout/Contact'
+import { Cta } from '../components/layout/Cta'
+import { Footer } from '../components/layout/Footer'
+import { Header } from '../components/layout/Header'
+import { Hero } from '../components/layout/Hero'
+import { NavMobile } from '../components/layout/NavMobile'
+import { Services } from '../components/layout/Services'
+import { Stats } from '../components/layout/Stats'
+import { Visual } from '../components/layout/Visual'
+import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
+
+// ─── Queries ─────────────────────────────────────────────
+
+async function getStoreConfig(): Promise<StoreConfig | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('store_config')
+    .select('*')
+    .single()
+
+  if (error) {
+    console.error('Error fetching store_config:', error.message)
+    return null
+  }
+  return data
+}
+
+async function getServices(): Promise<Service[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('service')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching services:', error.message)
+    return []
+  }
+  return data ?? []
+}
+
+// ─── Fallbacks ───────────────────────────────────────────
+
+const FALLBACK_STORE: Partial<StoreConfig> = {
+  name: 'Neumáticos Ramos',
+  phone: '+34 958 571 753',
+  whatsapp: '34600000000',
+  address: 'Avenida Poniente 76, 18100 Armilla, Granada',
+  google_maps_url: 'https://maps.google.com/?q=Avenida+Poniente+76+Armilla+Granada',
+}
+
+const FALLBACK_SERVICES: Service[] = [
+  { id: '1', icon: 'tire_repair', title: 'Cambio de neumáticos', description: 'Sustitución rápida con equilibrado incluido.', featured: false, sort_order: 1, is_active: true, created_at: '', updated_at: '' },
+  { id: '2', icon: 'build', title: 'Reparación pinchazos', description: 'Vulcanizado en frío para garantizar la integridad estructural.', featured: true, sort_order: 2, is_active: true, created_at: '', updated_at: '' },
+  { id: '3', icon: 'settings_input_component', title: 'Alineación 3D', description: 'Ajuste de ángulos mediante tecnología láser de alta precisión.', featured: false, sort_order: 3, is_active: true, created_at: '', updated_at: '' },
+  { id: '4', icon: 'speed', title: 'Equilibrado', description: 'Eliminación de vibraciones para un confort superior.', featured: false, sort_order: 4, is_active: true, created_at: '', updated_at: '' },
+]
+
+// ─── Página ──────────────────────────────────────────────
+
+export default async function HomePage() {
+  const [store, services] = await Promise.all([
+    getStoreConfig(),
+    getServices(),
+  ])
+
+  const s = store ?? FALLBACK_STORE
+  const svc = services.length > 0 ? services : FALLBACK_SERVICES
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+    <main className="overflow-x-hidden">
+
+      <div className="pt-[56px] md:pt-[68px] pb-20 md:pb-0">
+
+        {/* HERO */}
+        <Hero />
+
+        {/* SERVICIOS */}
+        <Services services={svc} />
+
+        {/* STATS */}
+        <Stats />
+
+        {/* SECCIÓN VISUAL */}
+        <Visual />
+
+        {/* CTA */}
+        <Cta />
+
+        {/* CONTACTO */}
+        <Contact storeConfig={s} />
+
+      </div>
+
+    </main>
+  )
 }
