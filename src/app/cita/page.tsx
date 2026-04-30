@@ -1,7 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 import Link from 'next/link'
-import { useState } from 'react'
+import type { Service } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Tipos ───────────────────────────────────────────────
 
@@ -19,34 +22,7 @@ interface FormData {
   notes: string
 }
 
-// ─── Datos hardcodeados ───────────────────────────────────
-
-const SERVICES = [
-  {
-    id: 'cambio',
-    icon: 'tire_repair',
-    title: 'Cambio de neumáticos',
-    description: 'Montaje, equilibrado y válvulas.',
-  },
-  {
-    id: 'alineacion',
-    icon: 'settings_input_component',
-    title: 'Alineación 3D',
-    description: 'Optimización de pisada y dirección.',
-  },
-  {
-    id: 'reparacion',
-    icon: 'build',
-    title: 'Reparación de pinchazos',
-    description: 'Vulcanizado en frío profesional.',
-  },
-  {
-    id: 'equilibrado',
-    icon: 'speed',
-    title: 'Equilibrado',
-    description: 'Eliminación de vibraciones.',
-  },
-]
+// ─── Datos estáticos ─────────────────────────────────────
 
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30',
@@ -72,6 +48,22 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 
+// ─── Festivos nacionales España ───────────────────────────
+function getFestivos(year: number): Set<string> {
+  return new Set([
+    `${year}-01-01`,
+    `${year}-01-06`,
+    `${year}-04-03`, // Viernes Santo 2026
+    `${year}-05-01`,
+    `${year}-08-15`,
+    `${year}-10-12`,
+    `${year}-11-01`,
+    `${year}-12-06`,
+    `${year}-12-08`,
+    `${year}-12-25`,
+  ])
+}
+
 // ─── Componente principal ─────────────────────────────────
 
 export default function CitaPage() {
@@ -81,6 +73,13 @@ export default function CitaPage() {
   const [calYear, setCalYear] = useState(today.getFullYear())
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [bookedSlots, setBookedSlots] = useState<string[]>([])
+  const [blockedDays, setBlockedDays] = useState<string[]>([])
+
+  // ─── Servicios desde Supabase ─────────────────────────
+  const [services, setServices] = useState<Service[]>([])
+  const [servicesLoading, setServicesLoading] = useState(true)
 
   const [form, setForm] = useState<FormData>({
     service: '',
@@ -100,7 +99,7 @@ export default function CitaPage() {
   // ─── Calendario ──────────────────────────────────────────
 
   const daysInMonth = getDaysInMonth(calYear, calMonth)
-  const firstDay = (getFirstDayOfMonth(calYear, calMonth) + 6) % 7 // lunes = 0
+  const firstDay = (getFirstDayOfMonth(calYear, calMonth) + 6) % 7
 
   const prevMonth = () => {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1) }
@@ -111,28 +110,139 @@ export default function CitaPage() {
     else setCalMonth(m => m + 1)
   }
 
+  const formatDate = (day: number) => {
+    const month = String(calMonth + 1).padStart(2, '0')
+    const dayStr = String(day).padStart(2, '0')
+    return `${calYear}-${month}-${dayStr}`
+  }
+
   const isDateDisabled = (day: number) => {
     const d = new Date(calYear, calMonth, day)
     const dayOfWeek = d.getDay()
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    return d < todayMidnight || dayOfWeek === 0 // sin domingos
+    const dateStr = formatDate(day)
+    const festivos = getFestivos(calYear)
+
+    return (
+      d < todayMidnight ||
+      dayOfWeek === 0 ||
+      dayOfWeek === 6 ||
+      festivos.has(dateStr) ||
+      blockedDays.includes(dateStr)
+    )
   }
 
-  const formatDate = (day: number) => {
-    const d = new Date(calYear, calMonth, day)
-    return d.toISOString().split('T')[0]
+  const isTimeDisabled = (slot: string) => {
+    if (!form.date) return true
+    if (bookedSlots.includes(slot)) return true
+
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    if (form.date !== todayStr) return false
+
+    const [slotHour, slotMinute] = slot.split(':').map(Number)
+    const slotMinutes = slotHour * 60 + slotMinute
+    const nowMinutes = today.getHours() * 60 + today.getMinutes()
+
+    return slotMinutes <= nowMinutes
   }
+
+  // ─── Cargar servicios ─────────────────────────────────
+  useEffect(() => {
+    async function fetchServices() {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('service')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      setServices(data ?? [])
+      setServicesLoading(false)
+    }
+    fetchServices()
+  }, [])
+
+  // ─── Cargar días bloqueados del mes ───────────────────
+useEffect(() => {
+  async function fetchBlockedDays() {
+    const supabase = createClient()
+    const lastDay = new Date(calYear, calMonth + 1, 0).getDate()
+    const startDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`
+    const endDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    
+    const { data } = await supabase
+      .from('availability_block')
+      .select('date, time')
+      .gte('date', startDate)
+      .lte('date', endDate)
+
+    const fullyBlocked = (data as { date: string, time: string | null }[] ?? [])
+      .filter(b => b.time === null)
+      .map(b => b.date)
+
+    setBlockedDays(fullyBlocked)
+  }
+  fetchBlockedDays()
+}, [calMonth, calYear])
+
+  // ─── Cargar slots ocupados del día ────────────────────
+  useEffect(() => {
+    if (!form.date) return
+
+    async function fetchBookedSlots() {
+      const supabase = createClient()
+
+      const { data: bookings } = await supabase
+        .from('booking')
+        .select('preferred_time')
+        .eq('preferred_date', form.date)
+        .in('status', ['pending', 'confirmed'])
+
+      const { data: adminBlocks } = await supabase
+        .from('availability_block')
+        .select('time')
+        .eq('date', form.date)
+
+      const bookedTimes = (bookings as { preferred_time: string }[] ?? [])
+        .map(b => b.preferred_time.substring(0, 5))
+
+      const blockedTimes = (adminBlocks as { time: string | null }[] ?? [])
+        .filter(b => b.time !== null)
+        .map(b => b.time!.substring(0, 5))
+
+      setBookedSlots([...bookedTimes, ...blockedTimes])
+    }
+
+    fetchBookedSlots()
+  }, [form.date])
 
   // ─── Submit ───────────────────────────────────────────────
 
   const handleSubmit = async () => {
     setLoading(true)
+    setError(null)
+
     try {
-      // TODO: conectar con Server Action cuando el diseño esté fino
-      await new Promise(r => setTimeout(r, 1000)) // simulación
+      const supabase = createClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: insertError } = await (supabase.from('booking') as any)
+        .insert({
+          full_name: form.full_name.trim(),
+          email: form.email.trim() || 'sin-email@neumaticosramos.es',
+          phone: form.phone.trim(),
+          plate: form.plate.trim() || null,
+          service_type: services.find(s => s.id === form.service)?.title ?? form.service,
+          preferred_date: form.date,
+          preferred_time: form.time,
+          notes: form.notes.trim() || null,
+          status: 'pending',
+          source: 'web',
+        })
+
+      if (insertError) throw insertError
       setSubmitted(true)
     } catch (e) {
       console.error(e)
+      setError('Ha ocurrido un error al enviar la cita. Por favor, llámanos directamente.')
     } finally {
       setLoading(false)
     }
@@ -198,7 +308,6 @@ export default function CitaPage() {
               </p>
             </div>
 
-            {/* Steps indicator desktop */}
             <div className="relative z-10 p-10 pb-12 space-y-4">
               {[
                 { n: 1, label: 'Selecciona servicio' },
@@ -207,19 +316,13 @@ export default function CitaPage() {
               ].map(({ n, label }) => (
                 <div key={n} className="flex items-center gap-3">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${
-                    step > n
-                      ? 'bg-brand border-brand text-white'
-                      : step === n
-                        ? 'bg-brand/15 border-brand text-brand'
-                        : 'bg-transparent border-zinc-700 text-zinc-600'
+                    step > n ? 'bg-brand border-brand text-white'
+                    : step === n ? 'bg-brand/15 border-brand text-brand'
+                    : 'bg-transparent border-zinc-700 text-zinc-600'
                   }`}>
-                    {step > n
-                      ? <span className="material-symbols-outlined text-sm">check</span>
-                      : n}
+                    {step > n ? <span className="material-symbols-outlined text-sm">check</span> : n}
                   </div>
-                  <span className={`font-grotesk text-xs uppercase tracking-widest font-bold ${
-                    step >= n ? 'text-white' : 'text-zinc-600'
-                  }`}>
+                  <span className={`font-grotesk text-xs uppercase tracking-widest font-bold ${step >= n ? 'text-white' : 'text-zinc-600'}`}>
                     {label}
                   </span>
                 </div>
@@ -236,27 +339,19 @@ export default function CitaPage() {
                 {[1, 2, 3].map((n) => (
                   <div key={n} className="flex items-center gap-2 flex-1">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${
-                      step > n
-                        ? 'bg-brand border-brand text-white'
-                        : step === n
-                          ? 'bg-brand/15 border-brand text-brand'
-                          : 'bg-transparent border-zinc-800 text-zinc-600'
+                      step > n ? 'bg-brand border-brand text-white'
+                      : step === n ? 'bg-brand/15 border-brand text-brand'
+                      : 'bg-transparent border-zinc-800 text-zinc-600'
                     }`}>
-                      {step > n
-                        ? <span className="material-symbols-outlined text-sm">check</span>
-                        : n}
+                      {step > n ? <span className="material-symbols-outlined text-sm">check</span> : n}
                     </div>
-                    {n < 3 && (
-                      <div className={`h-px flex-1 transition-colors ${step > n ? 'bg-brand' : 'bg-zinc-800'}`} />
-                    )}
+                    {n < 3 && <div className={`h-px flex-1 transition-colors ${step > n ? 'bg-brand' : 'bg-zinc-800'}`} />}
                   </div>
                 ))}
               </div>
               <div className="mt-2 flex justify-between">
                 {['Servicio', 'Horario', 'Detalles'].map((label, i) => (
-                  <span key={label} className={`font-grotesk text-[10px] uppercase tracking-widest font-bold ${
-                    step >= i + 1 ? 'text-white' : 'text-zinc-600'
-                  }`}>
+                  <span key={label} className={`font-grotesk text-[10px] uppercase tracking-widest font-bold ${step >= i + 1 ? 'text-white' : 'text-zinc-600'}`}>
                     {label}
                   </span>
                 ))}
@@ -267,52 +362,42 @@ export default function CitaPage() {
             {step === 1 && (
               <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-10 lg:px-16 py-6 md:py-12">
                 <div className="mb-8">
-                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">
-                    Paso 1 de 3
-                  </p>
-                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">
-                    Selecciona el servicio
-                  </h2>
+                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">Paso 1 de 3</p>
+                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">Selecciona el servicio</h2>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                  {SERVICES.map((service) => (
-                    <button
-                      key={service.id}
-                      onClick={() => set('service', service.id)}
-                      className={`glass-card p-5 md:p-6 flex items-start gap-4 text-left transition-all duration-200 group ${
-                        form.service === service.id
-                          ? 'border-brand/60 bg-brand/8'
-                          : 'hover:border-zinc-700'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 transition-colors ${
-                        form.service === service.id ? 'bg-brand/20' : 'bg-zinc-900'
-                      }`}>
-                        <span className={`material-symbols-outlined text-xl ${
-                          form.service === service.id ? 'text-brand' : 'text-zinc-500 group-hover:text-zinc-300'
-                        }`}>
-                          {service.icon}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-grotesk font-bold text-sm uppercase tracking-tight leading-tight ${
-                          form.service === service.id ? 'text-white' : 'text-zinc-300'
-                        }`}>
-                          {service.title}
-                        </p>
-                        <p className="font-inter text-xs text-zinc-500 mt-1 leading-relaxed">
-                          {service.description}
-                        </p>
-                      </div>
-                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 transition-colors ${
-                        form.service === service.id
-                          ? 'border-brand bg-brand'
-                          : 'border-zinc-700'
-                      }`} />
-                    </button>
-                  ))}
-                </div>
+                {servicesLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="glass-card p-5 md:p-6 h-24 animate-pulse bg-zinc-900/50" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                    {services.map((service) => (
+                      <button
+                        key={service.id}
+                        onClick={() => set('service', service.id)}
+                        className={`glass-card p-5 md:p-6 flex items-start gap-4 text-left transition-all duration-200 group ${
+                          form.service === service.id ? 'border-brand/60 bg-brand/8' : 'hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 transition-colors ${form.service === service.id ? 'bg-brand/20' : 'bg-zinc-900'}`}>
+                          <span className={`material-symbols-outlined text-xl ${form.service === service.id ? 'text-brand' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+                            {service.icon}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-grotesk font-bold text-sm uppercase tracking-tight leading-tight ${form.service === service.id ? 'text-white' : 'text-zinc-300'}`}>
+                            {service.title}
+                          </p>
+                          <p className="font-inter text-xs text-zinc-500 mt-1 leading-relaxed">{service.description}</p>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 transition-colors ${form.service === service.id ? 'border-brand bg-brand' : 'border-zinc-700'}`} />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-auto pt-8">
                   <button
@@ -331,88 +416,79 @@ export default function CitaPage() {
             {step === 2 && (
               <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-10 lg:px-16 py-6 md:py-12">
                 <div className="mb-8">
-                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">
-                    Paso 2 de 3
-                  </p>
-                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">
-                    Fecha y hora
-                  </h2>
+                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">Paso 2 de 3</p>
+                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">Fecha y hora</h2>
                 </div>
 
-                {/* Calendario */}
                 <div className="glass-card p-5 md:p-6 mb-6">
                   <div className="flex items-center justify-between mb-5">
-                    <button
-                      onClick={prevMonth}
-                      className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
-                    >
+                    <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
                       <span className="material-symbols-outlined text-lg">chevron_left</span>
                     </button>
                     <span className="font-grotesk font-bold uppercase text-white text-sm tracking-widest">
                       {MONTH_NAMES[calMonth]} {calYear}
                     </span>
-                    <button
-                      onClick={nextMonth}
-                      className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
-                    >
+                    <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
                       <span className="material-symbols-outlined text-lg">chevron_right</span>
                     </button>
                   </div>
 
-                  {/* Cabecera días */}
                   <div className="grid grid-cols-7 mb-2">
                     {DAY_NAMES.map((d, i) => (
-                      <div key={i} className="text-center font-grotesk text-[10px] font-bold uppercase text-zinc-600 py-1">
-                        {d}
-                      </div>
+                      <div key={i} className="text-center font-grotesk text-[10px] font-bold uppercase text-zinc-600 py-1">{d}</div>
                     ))}
                   </div>
 
-                  {/* Días */}
                   <div className="grid grid-cols-7 gap-1">
-                    {Array.from({ length: firstDay }).map((_, i) => (
-                      <div key={`empty-${i}`} />
-                    ))}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                      const day = i + 1
-                      const dateStr = formatDate(day)
-                      const disabled = isDateDisabled(day)
-                      const selected = form.date === dateStr
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
+{Array.from({ length: daysInMonth }).map((_, i) => {
+  const day = i + 1
+  const dateStr = formatDate(day)
+  const disabled = isDateDisabled(day)
+  const selected = form.date === dateStr
+  const isPast = new Date(calYear, calMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const isBlocked = blockedDays.includes(dateStr)
 
-                      return (
-                        <button
-                          key={day}
-                          disabled={disabled}
-                          onClick={() => set('date', dateStr)}
-                          className={`aspect-square flex items-center justify-center text-sm font-grotesk font-bold rounded transition-all ${
-                            selected
-                              ? 'bg-brand text-white'
-                              : disabled
-                                ? 'text-zinc-800 cursor-not-allowed'
-                                : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      )
-                    })}
+  return (
+    <button
+      key={day}
+      disabled={disabled}
+      onClick={() => { set('date', dateStr); set('time', '') }}
+      className={`aspect-square flex items-center justify-center text-sm font-grotesk font-bold rounded transition-all ${
+        selected
+          ? 'bg-brand text-white'
+          : isPast
+            ? 'text-zinc-800 cursor-not-allowed'
+            : isBlocked
+              ? 'text-zinc-600 cursor-not-allowed line-through'
+              : disabled // sábado, domingo, festivo
+                ? 'text-zinc-700 cursor-not-allowed'
+                : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+      }`}
+    >
+      {day}
+    </button>
+  )
+})}
                   </div>
                 </div>
 
-                {/* Horas */}
                 <div>
-                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">
-                    Hora disponible
-                  </p>
+                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Hora disponible</p>
                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-4 lg:grid-cols-6 gap-2">
                     {TIME_SLOTS.map((slot) => (
                       <button
                         key={slot}
                         onClick={() => set('time', slot)}
+                        disabled={isTimeDisabled(slot)}
                         className={`py-2.5 text-center font-grotesk text-xs font-bold border transition-all ${
-                          form.time === slot
-                            ? 'bg-brand border-brand text-white'
-                            : 'border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white'
+                          bookedSlots.includes(slot)
+                            ? 'border-zinc-800 text-zinc-700 cursor-not-allowed line-through bg-zinc-900/30'
+                            : isTimeDisabled(slot)
+                              ? 'border-zinc-900 text-zinc-700 cursor-not-allowed'
+                              : form.time === slot
+                                ? 'bg-brand border-brand text-white'
+                                : 'border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white'
                         }`}
                       >
                         {slot}
@@ -422,10 +498,7 @@ export default function CitaPage() {
                 </div>
 
                 <div className="mt-auto pt-8 flex gap-3">
-                  <button
-                    onClick={() => setStep(1)}
-                    className="px-6 py-4 border border-zinc-800 text-zinc-400 font-grotesk font-bold text-sm uppercase tracking-widest hover:border-zinc-600 hover:text-white transition-colors"
-                  >
+                  <button onClick={() => setStep(1)} className="px-6 py-4 border border-zinc-800 text-zinc-400 font-grotesk font-bold text-sm uppercase tracking-widest hover:border-zinc-600 hover:text-white transition-colors">
                     Atrás
                   </button>
                   <button
@@ -444,21 +517,14 @@ export default function CitaPage() {
             {step === 3 && (
               <div className="flex-1 flex flex-col px-4 sm:px-6 md:px-10 lg:px-16 py-6 md:py-12">
                 <div className="mb-8">
-                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">
-                    Paso 3 de 3
-                  </p>
-                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">
-                    Tus datos
-                  </h2>
+                  <p className="font-grotesk text-[10px] font-bold uppercase tracking-[0.2em] text-brand mb-2">Paso 3 de 3</p>
+                  <h2 className="font-grotesk font-bold uppercase text-white text-2xl md:text-3xl tracking-tight">Tus datos</h2>
                 </div>
 
-                {/* Resumen */}
                 <div className="glass-card p-4 md:p-5 mb-6 flex flex-wrap gap-4">
                   <div>
                     <p className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">Servicio</p>
-                    <p className="font-grotesk text-sm font-bold text-white">
-                      {SERVICES.find(s => s.id === form.service)?.title}
-                    </p>
+                    <p className="font-grotesk text-sm font-bold text-white">{services.find(s => s.id === form.service)?.title}</p>
                   </div>
                   <div className="w-px bg-zinc-800" />
                   <div>
@@ -474,7 +540,12 @@ export default function CitaPage() {
                   </div>
                 </div>
 
-                {/* Formulario */}
+                {error && (
+                  <div className="mb-4 p-4 border border-red-800/40 border-l-2 border-l-brand bg-red-950/30 text-sm text-red-400">
+                    {error}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -504,9 +575,7 @@ export default function CitaPage() {
                   </div>
 
                   <div>
-                    <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
-                      Email
-                    </label>
+                    <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">Email</label>
                     <input
                       type="email"
                       placeholder="email@ejemplo.com"
@@ -518,9 +587,7 @@ export default function CitaPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
-                        Matrícula
-                      </label>
+                      <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">Matrícula</label>
                       <input
                         type="text"
                         placeholder="1234 ABC"
@@ -530,9 +597,7 @@ export default function CitaPage() {
                       />
                     </div>
                     <div>
-                      <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
-                        Marca y modelo
-                      </label>
+                      <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">Marca y modelo</label>
                       <input
                         type="text"
                         placeholder="Ej: Seat León 2019"
@@ -544,9 +609,7 @@ export default function CitaPage() {
                   </div>
 
                   <div>
-                    <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
-                      Notas adicionales
-                    </label>
+                    <label className="font-grotesk text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">Notas adicionales</label>
                     <textarea
                       rows={3}
                       placeholder="Cuéntanos algo más sobre lo que necesitas..."
@@ -588,11 +651,9 @@ export default function CitaPage() {
                 </p>
               </div>
             )}
-
           </div>
         </div>
       </div>
-
     </main>
   )
 }

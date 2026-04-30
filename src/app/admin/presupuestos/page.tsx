@@ -1,74 +1,72 @@
 'use client'
 
-import type { Booking, BookingStatus } from '@/types/database'
+import type { QuoteRequest, QuoteStatus } from '@/types/database'
 import { useEffect, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
 
-const STATUS_LABELS: Record<BookingStatus, string> = {
+const STATUS_LABELS: Record<QuoteStatus, string> = {
   pending: 'Pendiente',
-  confirmed: 'Confirmada',
-  completed: 'Completada',
-  cancelled: 'Cancelada',
+  managed: 'Gestionado',
+  cancelled: 'Cancelado',
 }
 
-const STATUS_BADGE: Record<BookingStatus, string> = {
+const STATUS_BADGE: Record<QuoteStatus, string> = {
   pending: 'badge-pending',
-  confirmed: 'badge-confirmed',
-  completed: 'badge-completed',
+  managed: 'badge-confirmed',
   cancelled: 'badge-cancelled',
 }
 
-const STATUS_FLOW: Record<BookingStatus, BookingStatus[]> = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled'],
-  completed: [],
+const STATUS_FLOW: Record<QuoteStatus, QuoteStatus[]> = {
+  pending: ['managed', 'cancelled'],
+  managed: [],
   cancelled: [],
 }
 
-export default function CitasPage() {
-  const [bookings, setBookings] = useState<Booking[]>([])
+export default function ResupuestosPage() {
+  const [quotes, setQuotes] = useState<QuoteRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<BookingStatus | 'all'>('all')
+  const [filter, setFilter] = useState<QuoteStatus | 'all'>('all')
   const [search, setSearch] = useState('')
   const [updating, setUpdating] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchBookings()
+    fetchQuotes()
   }, [])
 
-  async function fetchBookings() {
+  async function fetchQuotes() {
     const supabase = createClient()
     const { data } = await supabase
-      .from('booking')
+      .from('quote_request')
       .select('*')
       .order('created_at', { ascending: false })
-    setBookings(data ?? [])
+    setQuotes(data ?? [])
     setLoading(false)
   }
 
-  async function updateStatus(id: string, status: BookingStatus) {
+  async function updateStatus(id: string, status: QuoteStatus) {
     setUpdating(id)
     const supabase = createClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('booking') as any)
+    await (supabase.from('quote_request') as any)
       .update({ status, managed_at: new Date().toISOString() })
       .eq('id', id)
-    await fetchBookings()
+    await fetchQuotes()
     setUpdating(null)
   }
 
-  const filtered = bookings.filter(b => {
-    const matchFilter = filter === 'all' || b.status === filter
+  const filtered = quotes.filter(q => {
+    const matchFilter = filter === 'all' || q.status === filter
     const matchSearch = search === '' ||
-      b.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      b.phone.includes(search) ||
-      b.service_type.toLowerCase().includes(search.toLowerCase())
+      q.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      q.phone.includes(search) ||
+      (q.vehicle_make ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (q.vehicle_model ?? '').toLowerCase().includes(search.toLowerCase())
     return matchFilter && matchSearch
   })
 
-  const counts = bookings.reduce((acc, b) => {
-    acc[b.status] = (acc[b.status] ?? 0) + 1
+  const counts = quotes.reduce((acc, q) => {
+    acc[q.status] = (acc[q.status] ?? 0) + 1
     return acc
   }, {} as Record<string, number>)
 
@@ -82,15 +80,15 @@ export default function CitasPage() {
             <div className="w-5 h-0.5 bg-primary-theme" />
             <span className="eyebrow">Gestión</span>
           </div>
-          <h1 className="display-title text-3xl text-white">Citas</h1>
+          <h1 className="display-title text-3xl text-white">Presupuestos</h1>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-white">{bookings.length}</p>
+          <p className="text-2xl font-bold text-white">{quotes.length}</p>
           <p className="text-xs text-white/30 uppercase tracking-wider">Total</p>
         </div>
       </div>
 
-      {/* Filtros por estado */}
+      {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setFilter('all')}
@@ -99,9 +97,9 @@ export default function CitasPage() {
               : 'bg-surface border border-white/[0.08] text-white/50 hover:text-white'
             }`}
         >
-          Todas ({bookings.length})
+          Todos ({quotes.length})
         </button>
-        {(Object.keys(STATUS_LABELS) as BookingStatus[]).map(s => (
+        {(Object.keys(STATUS_LABELS) as QuoteStatus[]).map(s => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -118,7 +116,7 @@ export default function CitasPage() {
       {/* Búsqueda */}
       <input
         className="input-theme max-w-sm"
-        placeholder="Buscar por nombre, teléfono o servicio..."
+        placeholder="Buscar por nombre, teléfono o vehículo..."
         value={search}
         onChange={e => setSearch(e.target.value)}
       />
@@ -128,7 +126,7 @@ export default function CitasPage() {
         {loading ? (
           <div className="px-6 py-16 text-center text-white/30 text-sm">Cargando...</div>
         ) : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center text-white/30 text-sm">No hay citas con estos filtros</div>
+          <div className="px-6 py-16 text-center text-white/30 text-sm">No hay presupuestos con estos filtros</div>
         ) : (
           <>
             {/* Desktop table */}
@@ -136,36 +134,45 @@ export default function CitasPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    {['Cliente', 'Teléfono', 'Fecha', 'Hora', 'Servicio', 'Matrícula', 'Estado', 'Acciones'].map(h => (
+                    {['Cliente', 'Teléfono', 'Medida', 'Vehículo', 'Mensaje', 'Estado', 'Acciones'].map(h => (
                       <th key={h} className="px-5 py-3 text-left eyebrow text-[10px] text-white/30">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(b => (
-                    <tr key={b.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                  {filtered.map(q => (
+                    <tr key={q.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                       <td className="px-5 py-4">
-                        <p className="text-sm text-white font-medium">{b.full_name}</p>
-                        <p className="text-xs text-white/30">{b.email}</p>
+                        <p className="text-sm text-white font-medium">{q.full_name}</p>
+                        <p className="text-xs text-white/30">{q.email}</p>
                       </td>
-                      <td className="px-5 py-4 text-sm text-white/60">{b.phone}</td>
-                      <td className="px-5 py-4 text-sm text-white/60">{b.preferred_date}</td>
-                      <td className="px-5 py-4 text-sm text-white/60">{b.preferred_time}</td>
-                      <td className="px-5 py-4 text-sm text-white/80">{b.service_type}</td>
-                      <td className="px-5 py-4 text-sm text-white/50 font-mono">{b.plate ?? '—'}</td>
-                      <td className="px-5 py-4">
-                        <span className={STATUS_BADGE[b.status]}>{STATUS_LABELS[b.status]}</span>
+                      <td className="px-5 py-4 text-sm text-white/60">{q.phone}</td>
+                      <td className="px-5 py-4 text-sm text-white/80 font-mono">
+                        {q.tyre_width && q.tyre_aspect_ratio && q.rim_diameter
+                          ? `${q.tyre_width}/${q.tyre_aspect_ratio} R${q.rim_diameter}`
+                          : '—'}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-white/60">
+                        {q.vehicle_make && q.vehicle_model
+                          ? `${q.vehicle_make} ${q.vehicle_model}`
+                          : '—'}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-white/40 max-w-[200px] truncate">
+                        {q.message ?? '—'}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex gap-2 flex-wrap">
-                          {STATUS_FLOW[b.status].map(next => (
+                        <span className={STATUS_BADGE[q.status]}>{STATUS_LABELS[q.status]}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex gap-2">
+                          {STATUS_FLOW[q.status].map(next => (
                             <button
                               key={next}
-                              onClick={() => updateStatus(b.id, next)}
-                              disabled={updating === b.id}
+                              onClick={() => updateStatus(q.id, next)}
+                              disabled={updating === q.id}
                               className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider bg-white/[0.06] hover:bg-primary-theme/20 border border-white/[0.1] hover:border-primary-theme/40 text-white/70 hover:text-white transition-all disabled:opacity-40"
                             >
-                              {updating === b.id ? '...' : STATUS_LABELS[next]}
+                              {updating === q.id ? '...' : STATUS_LABELS[next]}
                             </button>
                           ))}
                         </div>
@@ -178,30 +185,35 @@ export default function CitasPage() {
 
             {/* Mobile cards */}
             <div className="lg:hidden divide-y divide-white/[0.06]">
-              {filtered.map(b => (
-                <div key={b.id} className="p-4 space-y-3">
+              {filtered.map(q => (
+                <div key={q.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-white">{b.full_name}</p>
-                      <p className="text-xs text-white/40">{b.phone}</p>
+                      <p className="text-sm font-semibold text-white">{q.full_name}</p>
+                      <p className="text-xs text-white/40">{q.phone}</p>
                     </div>
-                    <span className={STATUS_BADGE[b.status]}>{STATUS_LABELS[b.status]}</span>
+                    <span className={STATUS_BADGE[q.status]}>{STATUS_LABELS[q.status]}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-white/50">
-                    <span>📅 {b.preferred_date} {b.preferred_time}</span>
-                    <span>🔧 {b.service_type}</span>
-                    {b.plate && <span>🚗 {b.plate}</span>}
+                    {q.tyre_width && (
+                      <span className="font-mono">🔵 {q.tyre_width}/{q.tyre_aspect_ratio} R{q.rim_diameter}</span>
+                    )}
+                    {q.vehicle_make && (
+                      <span>🚗 {q.vehicle_make} {q.vehicle_model}</span>
+                    )}
                   </div>
-                  {b.notes && <p className="text-xs text-white/30 italic">{b.notes}</p>}
+                  {q.message && (
+                    <p className="text-xs text-white/30 italic">{q.message}</p>
+                  )}
                   <div className="flex gap-2">
-                    {STATUS_FLOW[b.status].map(next => (
+                    {STATUS_FLOW[q.status].map(next => (
                       <button
                         key={next}
-                        onClick={() => updateStatus(b.id, next)}
-                        disabled={updating === b.id}
+                        onClick={() => updateStatus(q.id, next)}
+                        disabled={updating === q.id}
                         className="flex-1 py-2 text-xs font-semibold uppercase tracking-wider bg-white/[0.06] hover:bg-primary-theme/20 border border-white/[0.1] text-white/70 hover:text-white transition-all disabled:opacity-40"
                       >
-                        {updating === b.id ? '...' : STATUS_LABELS[next]}
+                        {updating === q.id ? '...' : STATUS_LABELS[next]}
                       </button>
                     ))}
                   </div>

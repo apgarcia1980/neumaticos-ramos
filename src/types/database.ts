@@ -197,6 +197,29 @@ export interface Database {
           updated_at?: string
         }
       }
+      availability_block: {
+        Row: {
+          id: string
+          date: string
+          time: string | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date: string
+          time?: string | null
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date?: string
+          time?: string | null
+          reason?: string | null
+          created_at?: string
+        }
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -211,6 +234,7 @@ export type Booking = Database['public']['Tables']['booking']['Row']
 export type BookingInsert = Database['public']['Tables']['booking']['Insert']
 export type QuoteRequest = Database['public']['Tables']['quote_request']['Row']
 export type QuoteRequestInsert = Database['public']['Tables']['quote_request']['Insert']
+export type AvailabilityBlock = Database['public']['Tables']['availability_block']['Row']
 
 export type BookingStatus = Booking['status']
 export type BookingSource = Booking['source']
