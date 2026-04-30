@@ -162,27 +162,27 @@ export default function CitaPage() {
   }, [])
 
   // ─── Cargar días bloqueados del mes ───────────────────
-useEffect(() => {
-  async function fetchBlockedDays() {
-    const supabase = createClient()
-    const lastDay = new Date(calYear, calMonth + 1, 0).getDate()
-    const startDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`
-    const endDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    
-    const { data } = await supabase
-      .from('availability_block')
-      .select('date, time')
-      .gte('date', startDate)
-      .lte('date', endDate)
+  useEffect(() => {
+    async function fetchBlockedDays() {
+      const supabase = createClient()
+      const lastDay = new Date(calYear, calMonth + 1, 0).getDate()
+      const startDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`
+      const endDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-    const fullyBlocked = (data as { date: string, time: string | null }[] ?? [])
-      .filter(b => b.time === null)
-      .map(b => b.date)
+      const { data } = await supabase
+        .from('availability_block')
+        .select('date, time')
+        .gte('date', startDate)
+        .lte('date', endDate)
 
-    setBlockedDays(fullyBlocked)
-  }
-  fetchBlockedDays()
-}, [calMonth, calYear])
+      const fullyBlocked = (data as { date: string, time: string | null }[] ?? [])
+        .filter(b => b.time === null)
+        .map(b => b.date)
+
+      setBlockedDays(fullyBlocked)
+    }
+    fetchBlockedDays()
+  }, [calMonth, calYear])
 
   // ─── Cargar slots ocupados del día ────────────────────
   useEffect(() => {
@@ -315,11 +315,10 @@ useEffect(() => {
                 { n: 3, label: 'Tus datos' },
               ].map(({ n, label }) => (
                 <div key={n} className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${
-                    step > n ? 'bg-brand border-brand text-white'
-                    : step === n ? 'bg-brand/15 border-brand text-brand'
-                    : 'bg-transparent border-zinc-700 text-zinc-600'
-                  }`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${step > n ? 'bg-brand border-brand text-white'
+                      : step === n ? 'bg-brand/15 border-brand text-brand'
+                        : 'bg-transparent border-zinc-700 text-zinc-600'
+                    }`}>
                     {step > n ? <span className="material-symbols-outlined text-sm">check</span> : n}
                   </div>
                   <span className={`font-grotesk text-xs uppercase tracking-widest font-bold ${step >= n ? 'text-white' : 'text-zinc-600'}`}>
@@ -338,11 +337,10 @@ useEffect(() => {
               <div className="flex items-center gap-2">
                 {[1, 2, 3].map((n) => (
                   <div key={n} className="flex items-center gap-2 flex-1">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${
-                      step > n ? 'bg-brand border-brand text-white'
-                      : step === n ? 'bg-brand/15 border-brand text-brand'
-                      : 'bg-transparent border-zinc-800 text-zinc-600'
-                    }`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold font-grotesk border shrink-0 transition-colors ${step > n ? 'bg-brand border-brand text-white'
+                        : step === n ? 'bg-brand/15 border-brand text-brand'
+                          : 'bg-transparent border-zinc-800 text-zinc-600'
+                      }`}>
                       {step > n ? <span className="material-symbols-outlined text-sm">check</span> : n}
                     </div>
                     {n < 3 && <div className={`h-px flex-1 transition-colors ${step > n ? 'bg-brand' : 'bg-zinc-800'}`} />}
@@ -378,9 +376,8 @@ useEffect(() => {
                       <button
                         key={service.id}
                         onClick={() => set('service', service.id)}
-                        className={`glass-card p-5 md:p-6 flex items-start gap-4 text-left transition-all duration-200 group ${
-                          form.service === service.id ? 'border-brand/60 bg-brand/8' : 'hover:border-zinc-700'
-                        }`}
+                        className={`glass-card p-5 md:p-6 flex items-start gap-4 text-left transition-all duration-200 group ${form.service === service.id ? 'border-brand/60 bg-brand/8' : 'hover:border-zinc-700'
+                          }`}
                       >
                         <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 transition-colors ${form.service === service.id ? 'bg-brand/20' : 'bg-zinc-900'}`}>
                           <span className={`material-symbols-outlined text-xl ${form.service === service.id ? 'text-brand' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
@@ -441,35 +438,34 @@ useEffect(() => {
 
                   <div className="grid grid-cols-7 gap-1">
                     {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
-{Array.from({ length: daysInMonth }).map((_, i) => {
-  const day = i + 1
-  const dateStr = formatDate(day)
-  const disabled = isDateDisabled(day)
-  const selected = form.date === dateStr
-  const isPast = new Date(calYear, calMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const isBlocked = blockedDays.includes(dateStr)
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const day = i + 1
+                      const dateStr = formatDate(day)
+                      const disabled = isDateDisabled(day)
+                      const selected = form.date === dateStr
+                      const isPast = new Date(calYear, calMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
+                      const isBlocked = blockedDays.includes(dateStr)
 
-  return (
-    <button
-      key={day}
-      disabled={disabled}
-      onClick={() => { set('date', dateStr); set('time', '') }}
-      className={`aspect-square flex items-center justify-center text-sm font-grotesk font-bold rounded transition-all ${
-        selected
-          ? 'bg-brand text-white'
-          : isPast
-            ? 'text-zinc-800 cursor-not-allowed'
-            : isBlocked
-              ? 'text-zinc-600 cursor-not-allowed line-through'
-              : disabled // sábado, domingo, festivo
-                ? 'text-zinc-700 cursor-not-allowed'
-                : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
-      }`}
-    >
-      {day}
-    </button>
-  )
-})}
+                      return (
+                        <button
+                          key={day}
+                          disabled={disabled}
+                          onClick={() => { set('date', dateStr); set('time', '') }}
+                          className={`aspect-square flex items-center justify-center text-sm font-grotesk font-bold rounded transition-all ${selected
+                              ? 'bg-brand text-white'
+                              : isPast
+                                ? 'text-zinc-800 cursor-not-allowed'
+                                : isBlocked
+                                  ? 'text-zinc-600 cursor-not-allowed line-through'
+                                  : disabled // sábado, domingo, festivo
+                                    ? 'text-zinc-700 cursor-not-allowed'
+                                    : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                            }`}
+                        >
+                          {day}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -481,15 +477,14 @@ useEffect(() => {
                         key={slot}
                         onClick={() => set('time', slot)}
                         disabled={isTimeDisabled(slot)}
-                        className={`py-2.5 text-center font-grotesk text-xs font-bold border transition-all ${
-                          bookedSlots.includes(slot)
+                        className={`py-2.5 text-center font-grotesk text-xs font-bold border transition-all ${bookedSlots.includes(slot)
                             ? 'border-zinc-800 text-zinc-700 cursor-not-allowed line-through bg-zinc-900/30'
                             : isTimeDisabled(slot)
                               ? 'border-zinc-900 text-zinc-700 cursor-not-allowed'
                               : form.time === slot
                                 ? 'bg-brand border-brand text-white'
                                 : 'border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white'
-                        }`}
+                          }`}
                       >
                         {slot}
                       </button>
